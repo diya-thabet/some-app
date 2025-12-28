@@ -35,11 +35,15 @@ jobs:
       with:
         java-version: '21'
         distribution: 'temurin'
-        cache:maven: true
+        cache: 'maven'
 
-    - name: Build and Test (Unit)
+    - name: Build and Test
       working-directory: ./backend
-      run: ./mvnw clean verify
+      run: mvn clean verify -DskipTests
+      
+    - name: Run Unit Tests
+      working-directory: ./backend
+      run: mvn test
       
     - name: Upload Test Results
       uses: actions/upload-artifact@v4
