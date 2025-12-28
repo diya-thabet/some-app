@@ -1,13 +1,16 @@
 package com.kawn.hirfa.match.service;
 
 import com.kawn.hirfa.auth.domain.User;
+import com.kawn.hirfa.common.exception.InvalidOperationException;
+import com.kawn.hirfa.common.exception.ResourceNotFoundException;
 import com.kawn.hirfa.match.domain.Bid;
 import com.kawn.hirfa.match.domain.Job;
 import com.kawn.hirfa.match.domain.JobStatus;
-import com.kawn.hirfa.match.repository.BidRepository; // Correct Import
+import com.kawn.hirfa.match.repository.BidRepository;
 import com.kawn.hirfa.match.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -21,6 +24,7 @@ public class MatchService {
     private final JobRepository jobRepository;
     private final BidRepository bidRepository;
 
+    @Transactional
     public Job createJob(User customer, String title, String description, BigDecimal budget, double lat, double lon) {
         Job job = Job.builder()
                 .customer(customer)
@@ -34,10 +38,13 @@ public class MatchService {
         return jobRepository.save(job);
     }
 
+    @Transactional
     public Bid placeBid(User provider, Long jobId, BigDecimal amount, String message) {
-        Job job = jobRepository.findById(jobId).orElseThrow(() -> new RuntimeException("Job not found"));
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found with id: " + jobId));
+
         if (!JobStatus.OPEN.equals(job.getStatus())) {
-            throw new RuntimeException("Job is not open for bidding");
+            throw new InvalidOperationException("Job is not open for bidding");
         }
 
         Bid bid = Bid.builder()
@@ -49,6 +56,23 @@ public class MatchService {
                 .build();
 
         return bidRepository.save(bid);
+    }
+
+    @Transactional
+    public void acceptBid(Long bidId, User customer) {
+        Bid bid = bidRepository.findById(bidId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bid not found with id: " + bidId));
+
+        Job job = bid.getJob();
+        if (!job.getCustomer().getId().equals(customer.getId())) {
+            throw new InvalidOperationException("Only the job owner can accept bids");
+        }
+
+        bid.setAccepted(true);
+        job.setStatus(JobStatus.IN_PROGRESS);
+
+        bidRepository.save(bid);
+        jobRepository.save(job);
     }
 
     // The "Fair-Play Algorithm" implementation
