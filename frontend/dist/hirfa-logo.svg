@@ -1,0 +1,10 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hirfaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E07A5F"/>
+      <stop offset="100%" style="stop-color:#F2CC8F"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="url(#hirfaGradient)"/>
+  <text x="24" y="34" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">ح</text>
+</svg>
