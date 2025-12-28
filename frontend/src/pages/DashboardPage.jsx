@@ -17,26 +17,44 @@ import {
     CheckCircle,
     Plus,
     MapPin,
-    Clock
+    Clock,
+    AlertCircle
 } from 'lucide-react';
 
 export default function DashboardPage() {
     const { t, language } = useLanguage();
     const { user, isProvider } = useAuth();
-    const { getJobs } = useApi();
+    const { getJobs, loading, error } = useApi();
     const location = useLocation();
 
     const [jobs, setJobs] = useState([]);
     const [activeTab, setActiveTab] = useState('overview');
+    const [loadingJobs, setLoadingJobs] = useState(true);
+    const [jobsError, setJobsError] = useState(null);
 
     useEffect(() => {
         loadJobs();
     }, []);
 
     const loadJobs = async () => {
-        const result = await getJobs();
-        if (result.success) {
-            setJobs(result.data);
+        setLoadingJobs(true);
+        setJobsError(null);
+        try {
+            const result = await getJobs();
+            // Handle different response formats
+            if (result?.data) {
+                setJobs(Array.isArray(result.data) ? result.data : [result.data]);
+            } else if (Array.isArray(result)) {
+                setJobs(result);
+            } else {
+                setJobs([]);
+            }
+        } catch (err) {
+            console.error('Failed to load jobs:', err);
+            setJobsError(err.message || 'Failed to load jobs');
+            setJobs([]);
+        } finally {
+            setLoadingJobs(false);
         }
     };
 
@@ -186,20 +204,20 @@ export default function DashboardPage() {
                     <div className="jobs-grid">
                         {jobs.slice(0, 3).map((job, index) => (
                             <motion.div
-                                key={job.id}
+                                key={job.id || index}
                                 className="job-card"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.3, delay: index * 0.1 }}
                             >
                                 <div className="job-header">
-                                    <h3 className="job-title">{job.title}</h3>
-                                    <span className="job-budget">{job.budget} TND</span>
+                                    <h3 className="job-title">{job.title || 'Untitled'}</h3>
+                                    <span className="job-budget">{job.budget || 0} TND</span>
                                 </div>
 
-                                <span className="job-category">{job.category}</span>
+                                <span className="job-category">{job.category || 'General'}</span>
 
-                                <p className="job-description">{job.description}</p>
+                                <p className="job-description">{job.description || ''}</p>
 
                                 <div className="job-footer">
                                     <div className="job-meta">
@@ -209,11 +227,11 @@ export default function DashboardPage() {
                                         </span>
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <Clock size={14} />
-                                            {new Date(job.createdAt).toLocaleDateString()}
+                                            {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : '-'}
                                         </span>
                                     </div>
-                                    <span className={`job-status ${job.status.toLowerCase().replace('_', '-')}`}>
-                                        {t(`jobs.status.${job.status.toLowerCase()}`)}
+                                    <span className={`job-status ${(job.status || 'open').toLowerCase().replace('_', '-')}`}>
+                                        {t(`jobs.status.${(job.status || 'open').toLowerCase()}`)}
                                     </span>
                                 </div>
                             </motion.div>

@@ -10,7 +10,8 @@ import {
     MessageCircle,
     Share2,
     Camera,
-    CheckCircle
+    CheckCircle,
+    AlertCircle
 } from 'lucide-react';
 
 export default function CommunityPage() {
@@ -20,6 +21,7 @@ export default function CommunityPage() {
 
     const [stories, setStories] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [showPostModal, setShowPostModal] = useState(false);
     const [newStory, setNewStory] = useState({ mediaUrl: '', caption: '' });
 
@@ -29,11 +31,21 @@ export default function CommunityPage() {
 
     const loadStories = async () => {
         setLoading(true);
+        setError(null);
         try {
             const result = await getStories();
-            if (result.success) {
-                setStories(result.data);
+            // Handle different response formats from Spring Boot
+            if (result?.data) {
+                setStories(Array.isArray(result.data) ? result.data : [result.data]);
+            } else if (Array.isArray(result)) {
+                setStories(result);
+            } else {
+                setStories([]);
             }
+        } catch (err) {
+            console.error('Failed to load stories:', err);
+            setError(err.message || 'Failed to load stories');
+            setStories([]);
         } finally {
             setLoading(false);
         }
@@ -43,18 +55,23 @@ export default function CommunityPage() {
         e.preventDefault();
         if (!newStory.caption.trim()) return;
 
-        await postStory({
-            user: user,
-            mediaUrl: newStory.mediaUrl || 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=800',
-            caption: newStory.caption
-        });
+        try {
+            await postStory({
+                mediaUrl: newStory.mediaUrl || '',
+                caption: newStory.caption
+            });
 
-        setNewStory({ mediaUrl: '', caption: '' });
-        setShowPostModal(false);
-        loadStories();
+            setNewStory({ mediaUrl: '', caption: '' });
+            setShowPostModal(false);
+            loadStories();
+        } catch (err) {
+            console.error('Failed to post story:', err);
+            alert(err.message || 'Failed to post story');
+        }
     };
 
     const getTimeAgo = (date) => {
+        if (!date) return language === 'ar' ? 'الآن' : 'Just now';
         const now = new Date();
         const diff = now - new Date(date);
         const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -138,12 +155,12 @@ export default function CommunityPage() {
                             >
                                 <div className="story-header">
                                     <div className="story-author-avatar">
-                                        {story.user.fullName.charAt(0)}
+                                        {(story.user?.fullName || 'U').charAt(0)}
                                     </div>
                                     <div>
                                         <div className="story-author-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            {story.user.fullName}
-                                            {story.user.verified && <CheckCircle size={14} color="var(--accent)" />}
+                                            {story.user?.fullName || 'Unknown'}
+                                            {story.user?.verified && <CheckCircle size={14} color="var(--accent)" />}
                                         </div>
                                         <div className="story-time">{getTimeAgo(story.createdAt)}</div>
                                     </div>

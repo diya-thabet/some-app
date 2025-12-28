@@ -1,107 +1,37 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
-
-// Mock data for demo
-const MOCK_JOBS = [
-    {
-        id: 1,
-        title: 'إصلاح تسرب المياه في الحمام',
-        description: 'عندي تسرب مياه في الحمام، نحب حد يجي يصلحو اليوم إذا ممكن. المشكلة في الصنبور الرئيسي.',
-        category: 'Plumbing',
-        budget: 50,
-        status: 'OPEN',
-        customer: { id: 2, fullName: 'سارة المنصوري', verified: true },
-        latitude: 36.8065,
-        longitude: 10.1815,
-        createdAt: '2025-12-28T10:00:00Z'
-    },
-    {
-        id: 2,
-        title: 'دروس رياضيات للباكالوريا',
-        description: 'نحب معلم رياضيات للتحضير للباكالوريا. 3 حصص في الأسبوع.',
-        category: 'Tutoring',
-        budget: 80,
-        status: 'OPEN',
-        customer: { id: 3, fullName: 'محمد الغربي', verified: true },
-        latitude: 36.8189,
-        longitude: 10.1658,
-        createdAt: '2025-12-27T15:30:00Z'
-    },
-    {
-        id: 3,
-        title: 'تنظيف شقة قبل العيد',
-        description: 'شقة 3 غرف تحتاج تنظيف عميق. نحب التنظيف يشمل النوافذ والمطبخ.',
-        category: 'Cleaning',
-        budget: 120,
-        status: 'IN_PROGRESS',
-        customer: { id: 4, fullName: 'فاطمة البجاوي', verified: false },
-        latitude: 36.7965,
-        longitude: 10.1814,
-        createdAt: '2025-12-26T09:00:00Z'
-    },
-    {
-        id: 4,
-        title: 'صباغة غرفة نوم',
-        description: 'غرفة 4x5 متر تحتاج صباغة جديدة. اللون أبيض.',
-        category: 'Painting',
-        budget: 200,
-        status: 'OPEN',
-        customer: { id: 5, fullName: 'يوسف الصفاقسي', verified: true },
-        latitude: 36.8100,
-        longitude: 10.1700,
-        createdAt: '2025-12-28T08:00:00Z'
-    }
-];
-
-const MOCK_STORIES = [
-    {
-        id: 1,
-        user: { id: 1, fullName: 'أحمد بن علي', verified: true },
-        mediaUrl: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800',
-        caption: 'خدمة سباكة اليوم في المرسى! العميل راضي والحمد لله 🔧💪',
-        createdAt: '2025-12-28T14:00:00Z'
-    },
-    {
-        id: 2,
-        user: { id: 6, fullName: 'خديجة العروسي' },
-        mediaUrl: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800',
-        caption: 'تنظيف فيلا كاملة! 6 ساعات خدمة متواصلة 🧹✨',
-        createdAt: '2025-12-27T18:30:00Z'
-    }
-];
-
-const MOCK_BIDS = [
-    { id: 1, jobId: 1, provider: { id: 1, fullName: 'أحمد بن علي', verified: true, fairnessScore: 85 }, amount: 45, message: 'متوفر الآن، نجي في نص ساعة', accepted: false },
-    { id: 2, jobId: 1, provider: { id: 7, fullName: 'منير السوسي', verified: true, fairnessScore: 78 }, amount: 55, message: 'عندي خبرة 10 سنين في السباكة', accepted: false }
-];
+// Real Spring Boot Backend API
+const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 export function useApi() {
     const { token } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-    };
-
+    // Generic API call function
     const apiCall = useCallback(async (endpoint, options = {}) => {
         setLoading(true);
         setError(null);
 
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            ...options.headers
+        };
+
         try {
             const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                 ...options,
-                headers: { ...headers, ...options.headers }
+                headers
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
+                throw new Error(data.message || `API Error: ${response.status}`);
             }
 
-            const data = await response.json();
             return data;
         } catch (err) {
             setError(err.message);
@@ -111,88 +41,170 @@ export function useApi() {
         }
     }, [token]);
 
-    // Jobs API
-    const getJobs = useCallback(() => {
-        // Return mock data for demo
-        return Promise.resolve({ success: true, data: MOCK_JOBS });
-    }, []);
+    // ============================================
+    // AUTH ENDPOINTS
+    // ============================================
 
-    const getJob = useCallback((jobId) => {
-        const job = MOCK_JOBS.find(j => j.id === parseInt(jobId));
-        return Promise.resolve({ success: true, data: job });
-    }, []);
+    // POST /api/v1/auth/register
+    const register = useCallback(async (fullName, phoneNumber, role) => {
+        return apiCall('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({
+                fullName,
+                phoneNumber,
+                role // CUSTOMER, PROVIDER, ADMIN
+            })
+        });
+    }, [apiCall]);
 
-    const createJob = useCallback((jobData) => {
-        const newJob = {
-            id: Date.now(),
-            ...jobData,
-            status: 'OPEN',
-            createdAt: new Date().toISOString()
-        };
-        MOCK_JOBS.unshift(newJob);
-        return Promise.resolve({ success: true, data: newJob });
-    }, []);
+    // POST /api/v1/auth/authenticate
+    const authenticate = useCallback(async (phoneNumber) => {
+        return apiCall('/auth/authenticate', {
+            method: 'POST',
+            body: JSON.stringify({
+                phoneNumber
+            })
+        });
+    }, [apiCall]);
 
-    // Bids API
-    const getBids = useCallback((jobId) => {
-        const bids = MOCK_BIDS.filter(b => b.jobId === parseInt(jobId));
-        return Promise.resolve({ success: true, data: bids });
-    }, []);
+    // ============================================
+    // JOB ENDPOINTS
+    // ============================================
 
-    const placeBid = useCallback((jobId, bidData) => {
-        const newBid = {
-            id: Date.now(),
-            jobId: parseInt(jobId),
-            ...bidData,
-            accepted: false,
-            createdAt: new Date().toISOString()
-        };
-        MOCK_BIDS.push(newBid);
-        return Promise.resolve({ success: true, data: newBid });
-    }, []);
+    // POST /api/v1/jobs - Create a new job
+    const createJob = useCallback(async (jobData) => {
+        return apiCall('/jobs', {
+            method: 'POST',
+            body: JSON.stringify({
+                title: jobData.title,
+                description: jobData.description,
+                budget: jobData.budget,
+                latitude: jobData.latitude,
+                longitude: jobData.longitude
+            })
+        });
+    }, [apiCall]);
 
-    // Community API
-    const getStories = useCallback(() => {
-        return Promise.resolve({ success: true, data: MOCK_STORIES });
-    }, []);
+    // GET /api/v1/jobs - Get all jobs (custom endpoint - may need to be added to backend)
+    const getJobs = useCallback(async () => {
+        try {
+            return await apiCall('/jobs', { method: 'GET' });
+        } catch (err) {
+            // If endpoint doesn't exist, return empty array
+            console.warn('Jobs endpoint not available:', err);
+            return { success: true, data: [] };
+        }
+    }, [apiCall]);
 
-    const postStory = useCallback((storyData) => {
-        const newStory = {
-            id: Date.now(),
-            ...storyData,
-            createdAt: new Date().toISOString()
-        };
-        MOCK_STORIES.unshift(newStory);
-        return Promise.resolve({ success: true, data: newStory });
-    }, []);
+    // GET /api/v1/jobs/{jobId} - Get single job
+    const getJob = useCallback(async (jobId) => {
+        return apiCall(`/jobs/${jobId}`, { method: 'GET' });
+    }, [apiCall]);
 
-    // Geo API
-    const updateLocation = useCallback((lat, lon) => {
-        return Promise.resolve({ success: true });
-    }, []);
+    // ============================================
+    // BID ENDPOINTS
+    // ============================================
 
-    const getNearbyProviders = useCallback((lat, lon, radius = 5000) => {
-        return Promise.resolve({ success: true, data: [] });
-    }, []);
+    // GET /api/v1/jobs/{jobId}/bids
+    const getBids = useCallback(async (jobId) => {
+        return apiCall(`/jobs/${jobId}/bids`, { method: 'GET' });
+    }, [apiCall]);
 
-    // Chat API
-    const getChatHistory = useCallback((jobId) => {
-        return Promise.resolve({ success: true, data: [] });
-    }, []);
+    // POST /api/v1/jobs/{jobId}/bids
+    const placeBid = useCallback(async (jobId, bidData) => {
+        return apiCall(`/jobs/${jobId}/bids`, {
+            method: 'POST',
+            body: JSON.stringify({
+                amount: bidData.amount,
+                message: bidData.message || ''
+            })
+        });
+    }, [apiCall]);
 
-    const sendMessage = useCallback((messageData) => {
-        return Promise.resolve({ success: true, data: messageData });
-    }, []);
+    // ============================================
+    // GEO ENDPOINTS
+    // ============================================
 
-    // Reviews API
-    const createReview = useCallback((reviewData) => {
-        return Promise.resolve({ success: true, data: reviewData });
-    }, []);
+    // POST /api/v1/geo/update?lat={lat}&lon={lon}
+    const updateLocation = useCallback(async (lat, lon) => {
+        return apiCall(`/geo/update?lat=${lat}&lon=${lon}`, {
+            method: 'POST'
+        });
+    }, [apiCall]);
+
+    // GET /api/v1/geo/nearby?lat={lat}&lon={lon}&radius={radius}
+    const getNearbyProviders = useCallback(async (lat, lon, radius = 5000) => {
+        return apiCall(`/geo/nearby?lat=${lat}&lon=${lon}&radius=${radius}`, {
+            method: 'GET'
+        });
+    }, [apiCall]);
+
+    // ============================================
+    // COMMUNITY/STORIES ENDPOINTS
+    // ============================================
+
+    // GET /api/v1/community/feed
+    const getStories = useCallback(async () => {
+        return apiCall('/community/feed', { method: 'GET' });
+    }, [apiCall]);
+
+    // POST /api/v1/community/stories
+    const postStory = useCallback(async (storyData) => {
+        return apiCall('/community/stories', {
+            method: 'POST',
+            body: JSON.stringify({
+                mediaUrl: storyData.mediaUrl,
+                caption: storyData.caption
+            })
+        });
+    }, [apiCall]);
+
+    // ============================================
+    // CHAT ENDPOINTS
+    // ============================================
+
+    // GET /api/v1/chat/history/{jobId}
+    const getChatHistory = useCallback(async (jobId) => {
+        return apiCall(`/chat/history/${jobId}`, { method: 'GET' });
+    }, [apiCall]);
+
+    // POST /api/v1/chat/send
+    const sendMessage = useCallback(async (messageData) => {
+        return apiCall('/chat/send', {
+            method: 'POST',
+            body: JSON.stringify({
+                senderId: messageData.senderId,
+                receiverId: messageData.receiverId,
+                jobId: messageData.jobId,
+                content: messageData.content
+            })
+        });
+    }, [apiCall]);
+
+    // ============================================
+    // REVIEW ENDPOINTS
+    // ============================================
+
+    // POST /api/v1/reviews
+    const createReview = useCallback(async (reviewData) => {
+        return apiCall('/reviews', {
+            method: 'POST',
+            body: JSON.stringify({
+                jobId: reviewData.jobId,
+                rating: reviewData.rating,
+                comment: reviewData.comment,
+                photoUrl: reviewData.photoUrl || null
+            })
+        });
+    }, [apiCall]);
 
     return {
         loading,
         error,
         apiCall,
+        // Auth
+        register,
+        authenticate,
         // Jobs
         getJobs,
         getJob,

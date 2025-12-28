@@ -11,7 +11,8 @@ import {
     MapPin,
     Clock,
     DollarSign,
-    ChevronDown
+    ChevronDown,
+    AlertCircle
 } from 'lucide-react';
 
 export default function JobsPage() {
@@ -22,6 +23,7 @@ export default function JobsPage() {
 
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
     const [showFilters, setShowFilters] = useState(false);
@@ -42,24 +44,40 @@ export default function JobsPage() {
 
     const loadJobs = async () => {
         setLoading(true);
+        setError(null);
         try {
             const result = await getJobs();
-            if (result.success) {
-                setJobs(result.data);
+            // Handle different response formats from Spring Boot
+            if (result?.data) {
+                setJobs(Array.isArray(result.data) ? result.data : [result.data]);
+            } else if (Array.isArray(result)) {
+                setJobs(result);
+            } else {
+                setJobs([]);
             }
+        } catch (err) {
+            console.error('Failed to load jobs:', err);
+            setError(err.message || 'Failed to load jobs');
+            setJobs([]);
         } finally {
             setLoading(false);
         }
     };
 
     const filteredJobs = jobs.filter(job => {
-        const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            job.description.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = !selectedCategory || job.category.toLowerCase() === selectedCategory;
+        if (!job) return false;
+        const title = job.title || '';
+        const description = job.description || '';
+        const category = job.category || '';
+
+        const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            description.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = !selectedCategory || category.toLowerCase() === selectedCategory;
         return matchesSearch && matchesCategory;
     });
 
     const getCategoryLabel = (categoryKey) => {
+        if (!categoryKey) return 'General';
         const found = categories.find(c => c.key.toLowerCase() === categoryKey.toLowerCase());
         return found ? found.label : categoryKey;
     };
@@ -236,54 +254,56 @@ export default function JobsPage() {
                                             </span>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <Clock size={14} />
-                                                {new Date(job.createdAt).toLocaleDateString()}
+                                                {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : '-'}
                                             </span>
                                         </div>
-                                        <span className={`job-status ${job.status.toLowerCase().replace('_', '-')}`}>
-                                            {t(`jobs.status.${job.status.toLowerCase()}`)}
+                                        <span className={`job-status ${(job.status || 'open').toLowerCase().replace('_', '-')}`}>
+                                            {t(`jobs.status.${(job.status || 'open').toLowerCase()}`)}
                                         </span>
                                     </div>
 
                                     {/* Customer Info */}
-                                    <div style={{
-                                        marginTop: '16px',
-                                        paddingTop: '16px',
-                                        borderTop: '1px solid var(--border-color)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '12px'
-                                    }}>
+                                    {job.customer && (
                                         <div style={{
-                                            width: '36px',
-                                            height: '36px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+                                            marginTop: '16px',
+                                            paddingTop: '16px',
+                                            borderTop: '1px solid var(--border-color)',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'white',
-                                            fontSize: '0.9rem',
-                                            fontWeight: '600'
+                                            gap: '12px'
                                         }}>
-                                            {job.customer.fullName.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <div style={{ fontSize: '0.9rem', fontWeight: '500' }}>
-                                                {job.customer.fullName}
+                                            <div style={{
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '50%',
+                                                background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: 'white',
+                                                fontSize: '0.9rem',
+                                                fontWeight: '600'
+                                            }}>
+                                                {(job.customer.fullName || 'U').charAt(0)}
                                             </div>
-                                            {job.customer.verified && (
-                                                <span style={{
-                                                    fontSize: '0.75rem',
-                                                    color: 'var(--accent)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px'
-                                                }}>
-                                                    ✓ {t('profile.verified')}
-                                                </span>
-                                            )}
+                                            <div>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: '500' }}>
+                                                    {job.customer.fullName || 'Unknown'}
+                                                </div>
+                                                {job.customer.verified && (
+                                                    <span style={{
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--accent)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}>
+                                                        ✓ {t('profile.verified')}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </Link>
                             </motion.div>
                         ))}

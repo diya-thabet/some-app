@@ -2,29 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-// Mock user for demo purposes
-const MOCK_USERS = {
-    '12345678': {
-        id: 1,
-        phoneNumber: '12345678',
-        fullName: 'أحمد بن علي',
-        role: 'PROVIDER',
-        fairnessScore: 85,
-        badges: ['The Flash', 'Neighborhood Hero'],
-        verified: true,
-        createdAt: '2024-01-15T10:00:00Z'
-    },
-    '87654321': {
-        id: 2,
-        phoneNumber: '87654321',
-        fullName: 'سارة المنصوري',
-        role: 'CUSTOMER',
-        fairnessScore: 92,
-        badges: ['Fair Customer'],
-        verified: true,
-        createdAt: '2024-02-20T14:30:00Z'
-    }
-};
+// API Base URL for Spring Boot backend
+const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -38,52 +17,97 @@ export function AuthProvider({ children }) {
 
         if (savedToken && savedUser) {
             setToken(savedToken);
-            setUser(JSON.parse(savedUser));
+            try {
+                setUser(JSON.parse(savedUser));
+            } catch (e) {
+                // Invalid JSON, clear storage
+                localStorage.removeItem('hirfa-token');
+                localStorage.removeItem('hirfa-user');
+            }
         }
         setLoading(false);
     }, []);
 
+    // POST /api/v1/auth/authenticate
     const login = async (phoneNumber) => {
-        // Simulate API call
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                const mockUser = MOCK_USERS[phoneNumber];
-                if (mockUser) {
-                    const mockToken = 'mock-jwt-token-' + Date.now();
-                    setToken(mockToken);
-                    setUser(mockUser);
-                    localStorage.setItem('hirfa-token', mockToken);
-                    localStorage.setItem('hirfa-user', JSON.stringify(mockUser));
-                    resolve({ success: true, user: mockUser });
-                } else {
-                    // Create new user for demo
-                    const newUser = {
-                        id: Date.now(),
-                        phoneNumber,
-                        fullName: 'مستخدم جديد',
-                        role: 'CUSTOMER',
-                        fairnessScore: 100,
-                        badges: [],
-                        verified: false,
-                        createdAt: new Date().toISOString()
-                    };
-                    const mockToken = 'mock-jwt-token-' + Date.now();
-                    setToken(mockToken);
-                    setUser(newUser);
-                    localStorage.setItem('hirfa-token', mockToken);
-                    localStorage.setItem('hirfa-user', JSON.stringify(newUser));
-                    resolve({ success: true, user: newUser });
-                }
-            }, 500);
-        });
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/authenticate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ phoneNumber })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Authentication failed');
+            }
+
+            // The response should contain a token
+            const authToken = data.token;
+
+            if (authToken) {
+                setToken(authToken);
+                localStorage.setItem('hirfa-token', authToken);
+
+                // Decode JWT to get user info (basic decode without verification)
+                // In production, you might want to call a /me endpoint
+                const userPayload = parseJwt(authToken);
+
+                const userData = {
+                    id: userPayload?.sub || userPayload?.id,
+                    phoneNumber: phoneNumber,
+                    fullName: userPayload?.fullName || 'User',
+                    role: userPayload?.role || 'CUSTOMER',
+                    fairnessScore: userPayload?.fairnessScore || 100,
+                    badges: userPayload?.badges || [],
+                    verified: userPayload?.verified || false
+                };
+
+                setUser(userData);
+                localStorage.setItem('hirfa-user', JSON.stringify(userData));
+
+                return { success: true, user: userData, token: authToken };
+            }
+
+            throw new Error('No token received');
+        } catch (error) {
+            console.error('Login error:', error);
+            throw error;
+        }
     };
 
+    // POST /api/v1/auth/register
     const register = async (fullName, phoneNumber, role) => {
-        // Simulate API call
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const newUser = {
-                    id: Date.now(),
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fullName,
+                    phoneNumber,
+                    role // CUSTOMER, PROVIDER, ADMIN
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Registration failed');
+            }
+
+            // The response should contain a token
+            const authToken = data.token;
+
+            if (authToken) {
+                setToken(authToken);
+                localStorage.setItem('hirfa-token', authToken);
+
+                const userData = {
                     phoneNumber,
                     fullName,
                     role,
@@ -92,14 +116,18 @@ export function AuthProvider({ children }) {
                     verified: false,
                     createdAt: new Date().toISOString()
                 };
-                const mockToken = 'mock-jwt-token-' + Date.now();
-                setToken(mockToken);
-                setUser(newUser);
-                localStorage.setItem('hirfa-token', mockToken);
-                localStorage.setItem('hirfa-user', JSON.stringify(newUser));
-                resolve({ success: true, user: newUser });
-            }, 500);
-        });
+
+                setUser(userData);
+                localStorage.setItem('hirfa-user', JSON.stringify(userData));
+
+                return { success: true, user: userData, token: authToken };
+            }
+
+            throw new Error('No token received');
+        } catch (error) {
+            console.error('Registration error:', error);
+            throw error;
+        }
     };
 
     const logout = () => {
@@ -119,7 +147,7 @@ export function AuthProvider({ children }) {
         user,
         token,
         loading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && !!token,
         isProvider: user?.role === 'PROVIDER',
         isCustomer: user?.role === 'CUSTOMER',
         isAdmin: user?.role === 'ADMIN',
@@ -134,6 +162,23 @@ export function AuthProvider({ children }) {
             {children}
         </AuthContext.Provider>
     );
+}
+
+// Helper function to decode JWT token (without verification)
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
 }
 
 export function useAuth() {
