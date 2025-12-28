@@ -23,12 +23,15 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // For H2 Console
                 .authorizeHttpRequests(req -> req
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
+                                "/docs/**",
+                                "/docs/api/**",
                                 "/actuator/**",
                                 "/h2-console/**",
                                 "/ws-hirfa/**")
