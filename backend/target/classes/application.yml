@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: hirfa
+  profiles:
+    active: dev # Default to H2 for development
+
+  # Common JPA Settings
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+  # File Upload Limits (for photos)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
